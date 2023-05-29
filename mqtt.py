@@ -1,8 +1,6 @@
 import asyncio
 import os
-import json
 from amqtt.client import MQTTClient
-from amqtt.mqtt.constants import QOS_0
 from data_models.measurement import ACMeasurement, DCMeasurement
 
 from typing import Tuple, List
@@ -11,10 +9,8 @@ from data_provider.influx_repository import InfluxRepository
 
 
 class MQTTMeasurementHandler:
-    def __init__(self, mqtt_broker_url, mqtt_username, mqtt_password, influx_repo, topics):
+    def __init__(self, mqtt_broker_url, influx_repo, topics):
         self.mqtt_broker_url = mqtt_broker_url
-        self.mqtt_username = mqtt_username
-        self.mqtt_password = mqtt_password
         self.influx_repo = influx_repo
         self.client = MQTTClient()
         self.topics: List[Tuple[str, int]] = topics
@@ -32,23 +28,12 @@ class MQTTMeasurementHandler:
         elif topic == "dc_measurement_topic":
             self.influx_repo.write_dc_measurement(measurement)
 
-    async def mqtt_message_received(self, topic, payload, qos, retain):
-        # Handle the measurement asynchronously
-        asyncio.create_task(self.handle_measurement(topic, payload))
-
     async def connect(self):
         # Connect to the MQTT broker
         await self.client.connect(self.mqtt_broker_url)
 
         # Subscribe to the measurement topics
-        await self.client.subscribe([
-            ("ac_measurement_topic", 0),
-            ("dc_measurement_topic", 0)
-        ])
-
-        # Start listening for incoming messages
-        self.client.message_callback_add("#", self.mqtt_message_received)
-        await self.client.loop_start()
+        await self.client.subscribe(self.topics)
 
     async def disconnect(self):
         # Clean up and disconnect from the MQTT broker
@@ -60,21 +45,30 @@ async def main():
     token = os.environ.get("INFLUXDB_TOKEN")
     org = "siegel"
     url = "http://localhost:8086"
+    topics = [
+        ("/114181804132/0/voltage", 0),
+        ("/114181804132/0/current", 0),
+        ("/114181804132/1/voltage", 0),
+        ("/114181804132/2/voltage", 0),
+        ("/114181804132/0/yieldday", 0),
+        ("/114181804132/0/yieldtotal", 0)
+    ]
     influx_repo = InfluxRepository(org, token, url)
 
     # Instantiate the MQTTMeasurementHandler
     mqtt_handler = MQTTMeasurementHandler(
-        mqtt_broker_url="broker.hivemq.com",
-        influx_repo=influx_repo
+        mqtt_broker_url="mqtt://test.mosquitto.org:1883",
+        influx_repo=influx_repo,
+        topics=topics
     )
 
-    # Connect to the MQTT broker and handle measurements
     await mqtt_handler.connect()
 
     # Keep the program running until interrupted
     try:
         while True:
-            await asyncio.sleep(1)
+            message = await mqtt_handler.client.deliver_message()
+            print(str(message.data) + "\t" + str(message.topic))
     except KeyboardInterrupt:
         pass
 

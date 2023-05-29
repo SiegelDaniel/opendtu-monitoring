@@ -1,22 +1,26 @@
-import attr
 from pydantic import BaseModel
 
 
-@attr.s
-class ACMeasurement(BaseModel):
+class MetaInfo(BaseModel):
+    channel: int
+    serial: str
+
+
+class VoltageMeasurement(BaseModel):
+    meta: MetaInfo
     voltage: float
+
+
+class CurrentMeasurement(BaseModel):
+    meta: MetaInfo
     current: float
-    power: float
+
+
+class YieldMeasurement(BaseModel):
+    meta: MetaInfo
+    yieldToday: float
+
+
+class TemperatureMeasurement(BaseModel):
+    meta: MetaInfo
     temperature: float
-    yieldTotal: float
-    yieldDay: float
-
-
-@attr.s
-class DCMeasurement(BaseModel):
-    input_number: int
-    current: float
-    voltage: float
-    power: float
-    yieldDay: float
-    yieldTotal: float
