@@ -1,7 +1,8 @@
 import asyncio
 import os
 from amqtt.client import MQTTClient
-from data_models.measurement import ACMeasurement, DCMeasurement
+from data_models.measurement import VoltageMeasurement, CurrentMeasurement, \
+    YieldMeasurement, TemperatureMeasurement, MetaInfo
 
 from typing import Tuple, List
 
@@ -15,18 +16,22 @@ class MQTTMeasurementHandler:
         self.client = MQTTClient()
         self.topics: List[Tuple[str, int]] = topics
 
-    async def parse_payload(self, payload: str) -> [ACMeasurement, DCMeasurement]:
-        pass
+    async def handle_measurement(self, topic:str, data: str) -> []:
+        measurements = {
+            "voltage": VoltageMeasurement,
+            "current": CurrentMeasurement,
+            "yieldday": YieldMeasurement,
+            "temperature": TemperatureMeasurement
+        }
+        data =  topic.split("/")
 
-    async def handle_measurement(self, topic, payload):
-        # Parse the payload into a measurement object
-        measurement = self.parse_payload(payload)
+        topic = data[3]
+        channel = data[2]
+        serial = data[1]
 
-        # Determine the measurement type based on the topic
-        if topic == "ac_measurement_topic":
-            self.influx_repo.write_ac_measurement(measurement)
-        elif topic == "dc_measurement_topic":
-            self.influx_repo.write_dc_measurement(measurement)
+        metainfo = MetaInfo(channel=channel, serial=serial)
+        measurement = measurements[topic](MetaInfo, data)
+
 
     async def connect(self):
         # Connect to the MQTT broker
@@ -68,7 +73,7 @@ async def main():
     try:
         while True:
             message = await mqtt_handler.client.deliver_message()
-            print(str(message.data) + "\t" + str(message.topic))
+            await mqtt_handler.handle_measurement(message.topic, message.data)
     except KeyboardInterrupt:
         pass
 
