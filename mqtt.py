@@ -1,9 +1,11 @@
 import asyncio
+import logging
 import os
 import struct
 
 from amqtt.client import MQTTClient
 from data_models.measurement import MetaInfo
+from logging import getLogger
 
 from typing import Tuple, List
 
@@ -16,8 +18,11 @@ class MQTTMeasurementHandler:
         self.influx_repo = influx_repo
         self.client = MQTTClient()
         self.topics: List[Tuple[str, int]] = topics
+        self.logger = getLogger("MeasurementHandlerLogger")
+        self.logger.addHandler(logging.StreamHandler())
 
     async def handle_measurement(self, topic: str, data: bytearray) -> []:
+        self.logger.debug("Handling measurement")
         datastr = topic.split("/")
 
         topic = datastr[3]
@@ -33,6 +38,7 @@ class MQTTMeasurementHandler:
 
 
     async def connect(self):
+        self.logger.debug("Connected to broker at {0}".format(self.mqtt_broker_url))
         # Connect to the MQTT broker
         await self.client.connect(self.mqtt_broker_url)
 
@@ -40,6 +46,7 @@ class MQTTMeasurementHandler:
         await self.client.subscribe(self.topics)
 
     async def disconnect(self):
+        self.logger.debug("Disconnected from broker.")
         # Clean up and disconnect from the MQTT broker
         await self.client.disconnect()
 
