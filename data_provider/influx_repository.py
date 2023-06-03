@@ -2,7 +2,7 @@ import influxdb_client, os, time
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 
-from data_models.measurement import VoltageMeasurement, TemperatureMeasurement, CurrentMeasurement, YieldMeasurement
+from data_models.measurement import MetaInfo
 
 token = os.environ.get("INFLUXDB_TOKEN")
 org = "siegel"
@@ -12,32 +12,38 @@ url = "http://localhost:8086"
 class InfluxRepository:
     def __init__(self, org: str, token: str, url: str = "http://localhost:8086") -> None:
         self.write_client = InfluxDBClient(url=url, token=token, org=org)
-    message_buffer = []
+        self.message_buffer = []
 
-    def write_voltage(self, voltage: VoltageMeasurement):
-        point = Point("voltage_measurement")\
-            .tag("Channel",voltage.meta.channel)\
+        self.insert_method_by_topic = {
+            "voltage": self.write_voltage,
+            "current": self.write_current,
+            "yieldday": self.write_yield_today,
+            "temperature": self.write_temperature
+        }
+
+    def write_voltage(self, meta: MetaInfo, voltage: float):
+        point = Point("voltage_measurement") \
+            .tag("Channel", meta.channel) \
             .field("voltage", voltage)
-        self.message_buffer.append(point)
+        self.write_point(point, bucket=meta.serial)
 
-    def write_temperature(self, temperature: TemperatureMeasurement):
+    def write_temperature(self, meta: MetaInfo, temperature: float):
         point = Point("temperature_measurement") \
-            .tag("Channel", temperature.meta.channel) \
-            .field("temperature", temperature.value)
-        self.message_buffer.append(point)
+            .tag("Channel", meta.channel) \
+            .field("temperature", temperature)
+        self.write_point(point, bucket=meta.serial)
 
-    def write_current(self, current: CurrentMeasurement):
+    def write_current(self, meta: MetaInfo, current: float):
         point = Point("current_measurement") \
-            .tag("Channel", current.meta.channel) \
-            .field("current", current.value)
-        self.message_buffer.append(point)
+            .tag("Channel", meta.channel) \
+            .field("current", current)
+        self.write_point(point, bucket=meta.serial)
 
-    def write_yield_today(self, yield_today: YieldMeasurement):
+    def write_yield_today(self, meta: MetaInfo, yield_today: float):
         point = Point("yield_measurement") \
-            .tag("Channel", yield_today.meta.channel) \
-            .field("yield", yield_today.value)
-        self.message_buffer.append(point)
-
+            .tag("Channel", meta.channel) \
+            .field("yield", yield_today)
+        self.write_point(point, bucket=meta.serial)
 
     def write_point(self, point: Point, bucket: str):
         write_api = self.write_client.write_api(write_options=ASYNCHRONOUS)

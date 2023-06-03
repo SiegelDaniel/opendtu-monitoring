@@ -1,8 +1,9 @@
 import asyncio
 import os
+import struct
+
 from amqtt.client import MQTTClient
-from data_models.measurement import VoltageMeasurement, CurrentMeasurement, \
-    YieldMeasurement, TemperatureMeasurement, MetaInfo
+from data_models.measurement import MetaInfo
 
 from typing import Tuple, List
 
@@ -16,21 +17,19 @@ class MQTTMeasurementHandler:
         self.client = MQTTClient()
         self.topics: List[Tuple[str, int]] = topics
 
-    async def handle_measurement(self, topic:str, data: str) -> []:
-        measurements = {
-            "voltage": VoltageMeasurement,
-            "current": CurrentMeasurement,
-            "yieldday": YieldMeasurement,
-            "temperature": TemperatureMeasurement
-        }
-        data =  topic.split("/")
+    async def handle_measurement(self, topic: str, data: bytearray) -> []:
+        datastr = topic.split("/")
 
-        topic = data[3]
-        channel = data[2]
-        serial = data[1]
+        topic = datastr[3]
+        channel = datastr[2]
+        serial = datastr[1]
 
-        metainfo = MetaInfo(channel=channel, serial=serial)
-        measurement = measurements[topic](MetaInfo, data)
+        meta_info = MetaInfo(channel=channel, serial=serial)
+        measurement = self.influx_repo.topics_to_measurements[topic]
+        data = float(data.decode('utf-8'))
+        easurement = measurement(meta_info, data)
+
+        self.influx_repo.insert_method_by_topic[topic](measurement)
 
 
     async def connect(self):
